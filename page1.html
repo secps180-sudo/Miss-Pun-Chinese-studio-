@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>說明文機器人工廠</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f0f9ff;
+        }
+
+        .robot-part {
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+
+        .robot-part:hover {
+            filter: brightness(1.1);
+            transform: scale(1.02);
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .glow {
+            filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6));
+        }
+
+        /* Tooltip style animation */
+        .typing-effect::after {
+            content: '|';
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // ---------------- Components ----------------
+
+        // Icon Component wrapper
+        const Icon = ({ name, size = 24, color = "currentColor" }) => {
+            const LucideIcon = window.lucide && window.lucide.icons ? window.lucide.icons[name] : null;
+            if (!LucideIcon) return <span>?</span>;
+            
+            // Convert the icon to an SVG string and render it dangerously to work with the CDN version
+            const svgString = new XMLSerializer().serializeToString(
+                new DOMParser().parseFromString(
+                    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-${name.toLowerCase()}"></svg>`,
+                    'image/svg+xml'
+                ).documentElement
+            );
+            
+            // We need to inject the specific path data. 
+            // Since we are using the generic lucide script, let's use a simpler approach for this demo environment:
+            // Just use text emojis or simple SVGs if lucide fails, but lucide.createIcons is usually for static HTML.
+            // For React in this specific setup, we will use simple SVG paths for UI icons to ensure reliability.
+            return null; 
+        };
+
+        // Custom Simple Icons for Reliability
+        const Icons = {
+            Brain: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 3.44-3.08A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-3.44-3.08A2.5 2.5 0 0 0 14.5 2Z"/></svg>,
+            Ruler: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>,
+            Hash: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>,
+            List: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
+            Refresh: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        };
+
+        const App = () => {
+            const [step, setStep] = useState(0); // 0: Start, 1: Head, 2: Body, 3: Legs
+            const [method, setMethod] = useState(null); // 'example', 'number', 'compare', 'category'
+            const [dialogue, setDialogue] = useState("歡迎來到說明文工廠！說明文就像機器人，需要有頭、有身體、有腳。讓我們開始組裝吧！");
+            
+            // Steps configuration
+            const steps = [
+                { id: 'start', title: '準備開始', instruction: '請點擊「製造頭部」開始你的文章。' },
+                { id: 'head', title: '總起 (開頭)', instruction: '這就是機器人的大腦。在說明文的開頭，我們要清楚告訴大家今天要介紹什麼。' },
+                { id: 'body', title: '分述 (正文)', instruction: '這是身體，最重要！你可以用不同的「工具」來詳細說明。試試看下方的工具按鈕！' },
+                { id: 'legs', title: '總結 (結尾)', instruction: '最後裝上腳，讓文章站得穩。這裡要總結全文，或者寫下你的感受。' }
+            ];
+
+            const methods = {
+                example: { label: '舉例說明', text: '例如：就像這支鉛筆盒，它能裝下五支鉛筆。', color: '#FCD34D', icon: <Icons.List /> },
+                number: { label: '數字說明', text: '它長 20 公分，重 100 公克，非常輕便。', color: '#60A5FA', icon: <Icons.Hash /> },
+                compare: { label: '比較說明', text: '它比一般的布筆袋更堅硬，保護性更好。', color: '#F472B6', icon: <Icons.Ruler /> },
+                category: { label: '分類說明', text: '它的構造分為兩層：上層放文具，下層放尺。', color: '#34D399', icon: <Icons.Brain /> },
+            };
+
+            const handleNextStep = () => {
+                if (step < 3) {
+                    const nextStep = step + 1;
+                    setStep(nextStep);
+                    setDialogue(steps[nextStep].instruction);
+                    if (nextStep === 2) {
+                        setMethod(null); // Reset method when entering body
+                    }
+                }
+            };
+
+            const handleMethodClick = (key) => {
+                if (step === 2) {
+                    setMethod(key);
+                    setDialogue(`【${methods[key].label}】：${methods[key].text}`);
+                } else if (step !== 2) {
+                    setDialogue("哎呀！這個工具只能在「正文（身體）」階段使用喔！");
+                }
+            };
+
+            const handleReset = () => {
+                setStep(0);
+                setMethod(null);
+                setDialogue(steps[0].instruction);
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center p-4">
+                    <header className="mb-6 text-center">
+                        <h1 className="text-3xl font-bold text-blue-600 mb-2">說明文機器人工廠</h1>
+                        <p className="text-gray-600">動手做做看，學會寫說明文！</p>
+                    </header>
+
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 flex flex-col md:flex-row gap-8">
+                        
+                        {/* Left: SVG Canvas */}
+                        <div className="flex-1 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 relative overflow-hidden flex items-center justify-center h-[400px]">
+                            {/* Grid Background */}
+                            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#4b5563 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                            
+                            <svg viewBox="0 0 400 400" className="w-full h-full max-w-[400px]">
+                                {/* Shadow */}
+                                {step >= 3 && (
+                                    <ellipse cx="200" cy="360" rx="80" ry="10" fill="#000" opacity="0.2" className="fade-in" />
+                                )}
+
+                                {/* LEGS (Conclusion) */}
+                                {step >= 3 && (
+                                    <g className="fade-in robot-part" onClick={() => setDialogue("這是結尾：總結全文，表達感受。")}>
+                                        <rect x="150" y="280" width="30" height="70" rx="5" fill="#4B5563" />
+                                        <rect x="220" y="280" width="30" height="70" rx="5" fill="#4B5563" />
+                                        <path d="M140 350 H190 V360 H140 Z" fill="#374151" />
+                                        <path d="M210 350 H260 V360 H210 Z" fill="#374151" />
+                                        <text x="200" y="320" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">總結</text>
+                                    </g>
+                                )}
+
+                                {/* BODY (Main Content) */}
+                                {step >= 2 && (
+                                    <g className="fade-in robot-part" onClick={() => setDialogue("這是正文：運用各種方法詳細說明。試試看右邊的按鈕！")}>
+                                        <rect x="130" y="140" width="140" height="140" rx="10" fill={method ? methods[method].color : "#3B82F6"} stroke="#2563EB" strokeWidth="4" />
+                                        
+                                        {/* Screen Content based on method */}
+                                        <rect x="150" y="160" width="100" height="80" rx="4" fill="white" opacity="0.8" />
+                                        
+                                        {method === 'number' && (
+                                            <text x="200" y="205" textAnchor="middle" fontSize="30" fill="#2563EB" fontWeight="bold">123</text>
+                                        )}
+                                        {method === 'compare' && (
+                                            <g transform="translate(180, 180) scale(0.8)">
+                                                <rect x="-20" y="-20" width="20" height="40" fill="#ccc" />
+                                                <rect x="10" y="-30" width="20" height="50" fill="#2563EB" />
+                                            </g>
+                                        )}
+                                        {method === 'category' && (
+                                            <g>
+                                                <rect x="160" y="170" width="35" height="25" rx="2" fill="#34D399" />
+                                                <rect x="205" y="170" width="35" height="25" rx="2" fill="#34D399" />
+                                                <rect x="160" y="205" width="35" height="25" rx="2" fill="#34D399" />
+                                                <rect x="205" y="205" width="35" height="25" rx="2" fill="#34D399" />
+                                            </g>
+                                        )}
+                                        {method === 'example' && (
+                                            <text x="200" y="205" textAnchor="middle" fontSize="16" fill="#2563EB">e.g.</text>
+                                        )}
+                                        {!method && (
+                                             <text x="200" y="205" textAnchor="middle" fontSize="40" fill="#bfdbfe">?</text>
+                                        )}
+
+                                        <text x="200" y="265" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold">正文</text>
+                                        
+                                        {/* Arms */}
+                                        <path d="M130 160 L90 190" stroke="#4B5563" strokeWidth="10" strokeLinecap="round" />
+                                        <circle cx="90" cy="190" r="12" fill="#374151" />
+                                        <path d="M270 160 L310 190" stroke="#4B5563" strokeWidth="10" strokeLinecap="round" />
+                                        <circle cx="310" cy="190" r="12" fill="#374151" />
+                                    </g>
+                                )}
+
+                                {/* HEAD (Introduction) */}
+                                {step >= 1 && (
+                                    <g className="fade-in robot-part" onClick={() => setDialogue("這是開頭：點明主題，引起興趣。")}>
+                                        <rect x="160" y="50" width="80" height="70" rx="8" fill="#EF4444" stroke="#B91C1C" strokeWidth="3" />
+                                        <circle cx="185" cy="75" r="8" fill="white" />
+                                        <circle cx="215" cy="75" r="8" fill="white" />
+                                        <path d="M190 95 Q200 105 210 95" stroke="white" strokeWidth="3" fill="none" />
+                                        <rect x="195" y="120" width="10" height="20" fill="#9CA3AF" />
+                                        
+                                        {/* Antenna */}
+                                        <line x1="200" y1="50" x2="200" y2="30" stroke="#4B5563" strokeWidth="3" />
+                                        <circle cx="200" cy="25" r="5" fill="#F59E0B" className={step === 1 ? "glow" : ""} />
+                                        <text x="200" y="15" textAnchor="middle" fill="#EF4444" fontSize="12" fontWeight="bold">開頭</text>
+                                    </g>
+                                )}
+                            </svg>
+                        </div>
+
+                        {/* Right: Controls & Dialogue */}
+                        <div className="flex-1 flex flex-col gap-4">
+                            
+                            {/* Dialogue Bubble */}
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 relative min-h-[120px]">
+                                <div className="absolute -left-2 top-6 w-4 h-4 bg-blue-50 border-b border-l border-blue-100 transform rotate-45 md:block hidden"></div>
+                                <h3 className="font-bold text-blue-800 mb-2 flex items-center gap-2">
+                                    <span className="text-xl">🤖</span> 機器人導師說：
+                                </h3>
+                                <p className="text-gray-700 leading-relaxed typing-effect">{dialogue}</p>
+                            </div>
+
+                            {/* Main Progress Controls */}
+                            <div className="grid grid-cols-1 gap-3">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-bold text-gray-500">組裝進度：</span>
+                                    <div className="flex gap-1">
+                                        {[1, 2, 3].map(i => (
+                                            <div key={i} className={`w-3 h-3 rounded-full ${step >= i ? 'bg-green-500' : 'bg-gray-200'}`}></div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {step === 0 && (
+                                    <button 
+                                        onClick={handleNextStep}
+                                        className="w-full py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold text-lg shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        步驟 1: 製造頭部 (開頭)
+                                    </button>
+                                )}
+                                {step === 1 && (
+                                    <button 
+                                        onClick={handleNextStep}
+                                        className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        步驟 2: 製造身體 (正文)
+                                    </button>
+                                )}
+                                {step === 2 && (
+                                    <div className="flex flex-col gap-2">
+                                        <p className="text-sm text-gray-500 text-center mb-1">點擊下方工具，為身體加入「說明方法」：</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {Object.entries(methods).map(([key, config]) => (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => handleMethodClick(key)}
+                                                    className={`p-3 rounded-lg border-2 font-bold text-sm transition-all flex items-center justify-center gap-2
+                                                        ${method === key 
+                                                            ? `bg-[${config.color}] border-transparent text-black shadow-inner ring-2 ring-offset-1 ring-[${config.color}]` 
+                                                            : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50'
+                                                        }`}
+                                                    style={{ backgroundColor: method === key ? config.color : '' }}
+                                                >
+                                                    {config.icon}
+                                                    {config.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <button 
+                                            onClick={handleNextStep}
+                                            className="mt-4 w-full py-3 bg-gray-700 hover:bg-gray-800 text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95"
+                                        >
+                                            步驟 3: 製造腳部 (結尾)
+                                        </button>
+                                    </div>
+                                )}
+                                {step === 3 && (
+                                    <div className="text-center">
+                                        <div className="p-4 bg-green-100 text-green-800 rounded-xl mb-4 font-bold">
+                                            🎉 恭喜！你完成了一篇完整的說明文機器人！
+                                        </div>
+                                        <button 
+                                            onClick={handleReset}
+                                            className="px-6 py-2 border-2 border-gray-300 text-gray-600 rounded-lg font-bold hover:bg-gray-100 flex items-center justify-center gap-2 mx-auto"
+                                        >
+                                            <Icons.Refresh /> 再玩一次
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-8 text-center text-gray-400 text-sm">
+                        <p>小提示：說明文的目的是「讓人看懂」，所以要客觀、清晰哦！</p>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
